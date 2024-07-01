@@ -121,6 +121,24 @@ build: fmt
 	done ; exit $$ret
 	@echo "build Success!"
 
+arm64: fmt
+	@echo "$(CGREEN)Building ...$(CEND)"
+	@mkdir -p bin
+	@ret=0 && for d in $$(go list -f '{{if (eq .Name "main")}}{{.ImportPath}}{{end}}' ./...); do \
+		b=$$(basename $${d}) ; \
+		GO111MODULE=on GOOS=linux GOARCH=arm64 go build ${LDFLAGS} ${GCFLAGS} -o bin/$${b}_arm64 $$d || ret=$$? ; \
+	done ; exit $$ret
+	@echo "build ARM Success!"
+
+amd64: fmt
+	@echo "$(CGREEN)Building ...$(CEND)"
+	@mkdir -p bin
+	@ret=0 && for d in $$(go list -f '{{if (eq .Name "main")}}{{.ImportPath}}{{end}}' ./...); do \
+		b=$$(basename $${d}) ; \
+		GO111MODULE=on GOOS=linux GOARCH=amd64 go build ${LDFLAGS} ${GCFLAGS} -o bin/$${b}_amd64 $$d || ret=$$? ; \
+	done ; exit $$ret
+	@echo "build AMD Success!"
+
 # Installs our project: copies binaries
 install: build
 	@echo "$(CGREEN)Install ...$(CEND)"
