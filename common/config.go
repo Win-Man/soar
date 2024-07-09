@@ -137,6 +137,7 @@ type Configuration struct {
 	Verbose            bool   `yaml:"verbose"`               // verbose模式，会多输出一些信息
 	DryRun             bool   `yaml:"dry-run"`               // 是否在预演环境执行
 	MaxPrettySQLLength int    `yaml:"max-pretty-sql-length"` // 超出该长度的SQL会转换成指纹输出
+	ApiServer          string `yaml:"api-server"`            // web 服务模式，监听地址
 }
 
 // Config 默认设置
@@ -330,6 +331,10 @@ func (env *Dsn) newMySQLConfig() (*mysql.Config, error) {
 	dsn.AllowNativePasswords = env.AllowNativePasswords
 	dsn.AllowOldPasswords = env.AllowOldPasswords
 	return dsn, err
+}
+
+func (env *Dsn) String() string {
+	return FormatDSN(env)
 }
 
 // 解析命令行DSN输入
@@ -660,6 +665,7 @@ func readCmdFlags() error {
 	verbose := flag.Bool("verbose", Config.Verbose, "Verbose")
 	dryrun := flag.Bool("dry-run", Config.DryRun, "是否在预演环境执行")
 	maxPrettySQLLength := flag.Int("max-pretty-sql-length", Config.MaxPrettySQLLength, "MaxPrettySQLLength, 超出该长度的SQL会转换成指纹输出")
+	apiServer := flag.String("api-server", Config.ApiServer, "soar server address,example: 127.0.0.1:9527")
 	// 一个不存在 log-level，用于更新 usage。
 	// 因为 vitess 里面也用了 flag，这些 vitess 的参数我们不需要关注
 	if !Config.Verbose && runtime.GOOS != "windows" {
@@ -768,7 +774,7 @@ func readCmdFlags() error {
 	if *columnNotAllowType != "" {
 		Config.ColumnNotAllowType = strings.Split(strings.ToLower(*columnNotAllowType), ",")
 	}
-
+	Config.ApiServer = *apiServer
 	PrintVersion = *printVersion
 	PrintConfig = *printConfig
 	CheckConfig = *checkConfig

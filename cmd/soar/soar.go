@@ -23,10 +23,12 @@ import (
 	"strings"
 
 	"github.com/XiaoMi/soar/advisor"
+	"github.com/XiaoMi/soar/api"
 	"github.com/XiaoMi/soar/ast"
 	"github.com/XiaoMi/soar/common"
 	"github.com/XiaoMi/soar/database"
 	"github.com/XiaoMi/soar/env"
+	"github.com/gin-gonic/gin"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/kr/pretty"
@@ -48,6 +50,12 @@ func main() {
 
 	// 配置文件&命令行参数解析
 	initConfig()
+	if common.Config.ApiServer != "" {
+		fmt.Printf("Start server listen:%s\n", common.Config.ApiServer)
+		router := gin.Default()
+		router.POST("/advistor", api.HandleAdvistor)
+		router.Run(common.Config.ApiServer)
+	}
 
 	// 命令行帮助工具，如 -list-report-types, -check-config等。
 	if isContinue, exitCode := helpTools(); !isContinue {
