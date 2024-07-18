@@ -21,18 +21,51 @@ func Hello(w http.ResponseWriter, r *http.Request) {
 
 func HandleAdvistor(c *gin.Context) {
 	sql := c.DefaultPostForm("query", "")
-	tsn := c.DefaultPostForm("tsn", "")
-	fmt.Printf("Get post params: sql=%s, tsn=%s\n", sql, tsn)
+	onlinedsn := c.DefaultPostForm("onlinedsn", "")
+	testdsn := c.DefaultPostForm("testdsn", "")
+	dbtype := c.DefaultPostForm("dbtype", "")
+	fmt.Printf("Get post params: sql=%s, onlinedsn=%s, testdsn=%s, dbtype=%s\n", sql, onlinedsn, testdsn, dbtype)
 	if sql == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "sql is required"})
+		c.JSON(http.StatusInternalServerError, gin.H{"messages": "query parameter is required"})
 	} else {
-		format_sql, advistors := getSuggest(sql, tsn)
-		c.JSON(http.StatusOK, gin.H{"message": advistors, "origin_sql": sql, "format_sql": format_sql})
+		_, advistors := getSuggest(sql, onlinedsn, testdsn, dbtype)
+		c.JSON(http.StatusOK, gin.H{"messages": advistors, "origin_sql": sql})
 	}
 }
 
+func HandleHealthy(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"messages": "healthy"})
+}
+
+// 合并数组
+func merge(arr1 []string, arr2 []string) (res []string) {
+	m := make(map[string]bool, len(arr1)+len(arr2))
+	for _, v := range arr1 {
+		m[v] = true
+	}
+	for _, v := range arr2 {
+		if !m[v] {
+			res = append(res, v)
+		}
+		m[v] = true
+	}
+	return res
+}
+
+// 去重数组
+func unique(arr []string) (res []string) {
+	m := make(map[string]bool, len(arr))
+	for _, v := range arr {
+		if !m[v] {
+			res = append(res, v)
+		}
+		m[v] = true
+	}
+	return res
+}
+
 // 对单条 SQL 获取优化建议
-func getSuggest(sql string, tsn string) (string, string) {
+func getSuggest(sql string, onlinedsn string, testdsn string, dbtype string) (string, string) {
 	if sql == "" {
 		return "", ""
 	}
@@ -50,17 +83,22 @@ func getSuggest(sql string, tsn string) (string, string) {
 	suggestMerged := make(map[string]map[string]advisor.Rule) // 优化建议去重, key 为 sql 的 fingerprint.ID
 	lineCounter := 1
 	orgSQL := sql
-	fmt.Printf("Enter sql and tsn: %s, %s\n", sql, tsn)
-
-	if tsn != "" {
-		fmt.Println("tsn is not empty")
-		common.Config.TestDSN = nil
-		//common.Config.OnlineDSN = nil
-		common.Config.TestDSN = common.ParseDSN(tsn, common.Config.TestDSN)
-		//common.Config.OnlineDSN = common.ParseDSN(tsn, common.Config.OnlineDSN)
-		fmt.Printf("TestDSN:%s\n", common.FormatDSN(common.Config.TestDSN))
-		//fmt.Printf("OnlineDSN:%s\n", common.FormatDSN(common.Config.OnlineDSN))
+	if strings.ToLower(dbtype) == "mysql" {
+		common.Config.IgnoreRules = unique(merge(common.Config.IgnoreRules, common.Config.MySQLIgnoreRules))
+	} else if strings.ToLower(dbtype) == "tidb" {
+		common.Config.IgnoreRules = unique(merge(common.Config.IgnoreRules, common.Config.TiDBIgnoreRules))
+	}
+	if onlinedsn != "" {
+		fmt.Println("onlinedsn is not empty")
+		common.Config.OnlineDSN = common.ParseDSN(onlinedsn, common.Config.OnlineDSN)
+		fmt.Printf("OnlineDSN:%s\n", common.FormatDSN(common.Config.OnlineDSN))
 		common.Config.AllowOnlineAsTest = true
+		common.Config.Explain = true
+	}
+	if testdsn != "" {
+		fmt.Println("onlinedsn is not empty")
+		common.Config.TestDSN = common.ParseDSN(testdsn, common.Config.TestDSN)
+		fmt.Printf("TestDSN:%s\n", common.FormatDSN(common.Config.TestDSN))
 	}
 	// 环境初始化，连接检查线上环境+构建测试环境
 	vEnv, rEnv := env.BuildEnv()
@@ -82,7 +120,7 @@ func getSuggest(sql string, tsn string) (string, string) {
 	}
 	// SQL 签名
 	id = query.Id(fingerprint)
-	//TODO 根据传入的 TSN 设置 schema
+	//TODO 根据传入的 dsn 设置 schema
 	common.Config.TestDSN.Schema = ""
 	currentDB = env.CurrentDB(sql, currentDB)
 
@@ -117,7 +155,7 @@ func getSuggest(sql string, tsn string) (string, string) {
 	}
 	common.Log.Debug("end of heuristic advisor Query: %s", q.Query)
 	// +++++++++++++++++++++启发式规则建议[结束]+++++++++++++++++++++++}
-	if tsn != "" {
+	if testdsn != "" {
 		// +++++++++++++++++++++索引优化建议[开始]+++++++++++++++++++++++{
 		// 如果配置了索引建议过滤规则，不进行索引优化建议
 		// 在配置文件 ignore-rules 中添加 'IDX.*' 即可屏蔽索引优化建议
@@ -172,7 +210,7 @@ func getSuggest(sql string, tsn string) (string, string) {
 		// +++++++++++++++++++++EXPLAIN 建议[开始]+++++++++++++++++++++++{
 		// 如果未配置 Online 或 Test 无法给 Explain 建议
 		common.Log.Debug("start of explain Query: %s", q.Query)
-		if !common.Config.OnlineDSN.Disable && !common.Config.TestDSN.Disable {
+		if !common.Config.OnlineDSN.Disable && !common.Config.TestDSN.Disable && strings.ToLower(dbtype) == "mysql" {
 			// 因为 EXPLAIN 依赖数据库环境，所以把这段逻辑放在启发式建议和索引建议后面
 			if common.Config.Explain {
 				// 执行 EXPLAIN
@@ -202,7 +240,7 @@ func getSuggest(sql string, tsn string) (string, string) {
 		common.Log.Debug("end of explain Query: %s", q.Query)
 		// +++++++++++++++++++++ EXPLAIN 建议[结束]+++++++++++++++++++++++}
 	} else {
-		fmt.Println("tsn is epmpty")
+		fmt.Println("dsn is epmpty")
 	}
 
 	// +++++++++++++++++++++打印单条 SQL 优化建议[开始]++++++++++++++++++++++++++{

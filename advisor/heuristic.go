@@ -4057,6 +4057,32 @@ func (q *Query4Audit) RuleStandardName() Rule {
 	return rule
 }
 
+type visitor struct{}
+
+func (v *visitor) Enter(in tidb.Node) (out tidb.Node, skipChildren bool) {
+	fmt.Printf("%T\n", in)
+	return in, false
+}
+func (v *visitor) Leave(in tidb.Node) (out tidb.Node, ok bool) {
+	return in, true
+}
+
+// RuleSelectForUpdate SEL.001
+func (q *Query4Audit) RuleSelectForUpdate() Rule {
+	var rule = q.RuleOK()
+	for _, tiStmtNode := range q.TiStmt {
+		switch stmt := tiStmtNode.(type) {
+		// SetOprStmt represents "union/except/intersect statement"
+		case *tidb.SelectStmt:
+			if stmt.LockInfo.LockType.String() != "none" {
+				rule = HeuristicRules["SEL.001"]
+				rule.Content = fmt.Sprintf("select ... %s 必须在显式事务下使用，自动提交下的 select ... %s 和 select 等价", stmt.LockInfo.LockType.String(), stmt.LockInfo.LockType.String())
+			}
+		}
+	}
+	return rule
+}
+
 // MergeConflictHeuristicRules merge conflict rules
 func MergeConflictHeuristicRules(rules map[string]Rule) map[string]Rule {
 	// KWR.001 VS ERR.000

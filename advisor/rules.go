@@ -1206,6 +1206,14 @@ func InitHeuristicRules() {
 			Case:     "CREATE TABLE tbl (a int) DEFAULT COLLATE = latin1_bin;",
 			Func:     (*Query4Audit).RuleTableCharsetCheck,
 		},
+		"SEL.001": {
+			Item:     "SEL.001",
+			Severity: "L1",
+			Summary:  "SELECT FOR UPDATE 必须在显式事务下使用",
+			Content:  "TiDB 中 SELECT FOR UPDATE 必须在显式事务下使用，自动提交下的 SELECT FOR UPDATE 目前不会加锁",
+			Case:     "SELECT ID FROM TBL WHERE ID = 1 FOR UPDATE;",
+			Func:     (*Query4Audit).RuleSelectForUpdate,
+		},
 	}
 }
 

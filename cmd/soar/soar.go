@@ -54,6 +54,7 @@ func main() {
 		fmt.Printf("Start server listen:%s\n", common.Config.ApiServer)
 		router := gin.Default()
 		router.POST("/advistor", api.HandleAdvistor)
+		router.POST("/healthy", api.HandleHealthy)
 		router.Run(common.Config.ApiServer)
 	}
 

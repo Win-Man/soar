@@ -1690,6 +1690,7 @@ func TestRuleStringConcatenation(t *testing.T) {
 	}
 	common.Log.Debug("Exiting function: %s", common.GetFunctionName())
 }
+
 // FUN.004
 func TestRuleSysdate(t *testing.T) {
 	common.Log.Debug("Entering function: %s", common.GetFunctionName())

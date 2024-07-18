@@ -87,6 +87,8 @@ type Configuration struct {
 
 	// ++++++++++++++优化建议相关++++++++++++++
 	IgnoreRules          []string `yaml:"ignore-rules"`              // 忽略的优化建议规则
+	MySQLIgnoreRules     []string `yaml:"mysql-ignore-rules"`        // 针对MySQL的优化建议规则
+	TiDBIgnoreRules      []string `yaml:"tidb-ignore-rules"`         // 针对TiDB的优化建议规则
 	RewriteRules         []string `yaml:"rewrite-rules"`             // 生效的重写规则
 	BlackList            string   `yaml:"blacklist"`                 // blacklist 中的 SQL 不会被评审，可以是指纹，也可以是正则
 	MaxJoinTableCount    int      `yaml:"max-join-table-count"`      // 单条 SQL 中 JOIN 表的最大数量
@@ -206,6 +208,12 @@ var Config = &Configuration{
 	ShowLastQueryCost:      false,
 
 	IgnoreRules: []string{
+		"COL.011",
+	},
+	MySQLIgnoreRules: []string{
+		"COL.011",
+	},
+	TiDBIgnoreRules: []string{
 		"COL.011",
 	},
 	RewriteRules: []string{
